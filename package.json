@@ -1,0 +1,60 @@
+{
+  "name": "snaptime",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "db:start": "node scripts/db.mjs start",
+    "db:stop": "node scripts/db.mjs stop",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio",
+    "db:seed": "node scripts/seed-demo.mjs"
+  },
+  "allowScripts": {
+    "@embedded-postgres/linux-x64@18.4.0-beta.17": true,
+    "@prisma/engines@6.19.3": true,
+    "prisma@6.19.3": true,
+    "sharp@0.35.3": true,
+    "sharp@0.34.5": true,
+    "unrs-resolver@1.12.2": true,
+    "@prisma/client@6.19.3": true
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3",
+    "@aws-sdk/s3-request-presigner": "^3",
+    "@prisma/client": "^6",
+    "archiver": "^7",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2",
+    "lucide-react": "^0.539.0",
+    "next": "16.3.0",
+    "next-themes": "^0.4.6",
+    "qrcode": "^1.5.4",
+    "radix-ui": "^1.6.7",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "server-only": "^0.0.1",
+    "sharp": "^0.34",
+    "sonner": "^2.0.8",
+    "tailwind-merge": "^3",
+    "zod": "^4"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/archiver": "^6",
+    "@types/node": "^20",
+    "@types/qrcode": "^1",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "embedded-postgres": "18.4.0-beta.17",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.0",
+    "prisma": "^6",
+    "tailwindcss": "^4",
+    "tw-animate-css": "^1",
+    "typescript": "^5"
+  }
+}

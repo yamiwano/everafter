@@ -1,0 +1,275 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Accounts & auth
+// ─────────────────────────────────────────────────────────────────────────────
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String    @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  sessions      AuthSession[]
+  memberships   WeddingMember[]
+  subscriptions Subscription[]
+  notifications Notification[]
+  favorites     PhotoFavorite[]
+  reports       PhotoReport[]
+
+  @@index([email])
+  @@map("users")
+}
+
+model AuthSession {
+  id        String   @id @default(uuid()) @db.Uuid
+  tokenHash String   @unique
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  ip        String?
+  userAgent String?
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("auth_sessions")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Weddings
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Wedding {
+  id          String    @id @default(uuid()) @db.Uuid
+  slug        String    @unique
+  coupleNames String
+  weddingDate DateTime  @db.Date
+  location    String
+  timezone    String // IANA zone, e.g. "America/Chicago"
+  revealAt    DateTime // authoritative reveal instant, stored in UTC
+  revealedAt  DateTime? // set when the reveal is first observed server-side
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  members       WeddingMember[]
+  settings      WeddingSettings?
+  guestSessions GuestSession[]
+  photos        Photo[]
+  notifications Notification[]
+  auditLogs     AuditLog[]
+
+  @@index([slug])
+  @@index([revealAt])
+  @@map("weddings")
+}
+
+enum WeddingRole {
+  OWNER
+  PARTNER
+  PLANNER
+}
+
+model WeddingMember {
+  id        String      @id @default(uuid()) @db.Uuid
+  weddingId String      @db.Uuid
+  wedding   Wedding     @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  userId    String      @db.Uuid
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      WeddingRole @default(OWNER)
+  createdAt DateTime    @default(now())
+
+  @@unique([weddingId, userId])
+  @@index([userId])
+  @@map("wedding_members")
+}
+
+model WeddingSettings {
+  id                  String   @id @default(uuid()) @db.Uuid
+  weddingId           String   @unique @db.Uuid
+  wedding             Wedding  @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  moderationEnabled   Boolean  @default(false)
+  showAttribution     Boolean  @default(true)
+  allowGuestDownloads Boolean  @default(true)
+  maxPhotosPerGuest   Int      @default(30)
+  welcomeMessage      String?
+  updatedAt           DateTime @updatedAt
+
+  @@map("wedding_settings")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Guests
+// ─────────────────────────────────────────────────────────────────────────────
+
+model GuestSession {
+  id          String   @id @default(uuid()) @db.Uuid
+  weddingId   String   @db.Uuid
+  wedding     Wedding  @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  tokenHash   String   @unique
+  displayName String
+  revoked     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+  ip          String?
+  userAgent   String?
+
+  photos    Photo[]
+  favorites PhotoFavorite[]
+  reports   PhotoReport[]
+
+  @@index([weddingId])
+  @@map("guest_sessions")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Photos
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum PhotoStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Photo {
+  id             String        @id @default(uuid()) @db.Uuid
+  weddingId      String        @db.Uuid
+  wedding        Wedding       @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  guestSessionId String?       @db.Uuid
+  guestSession   GuestSession? @relation(fields: [guestSessionId], references: [id], onDelete: SetNull)
+  contributorName String
+  storageKey     String        @unique // original
+  mediumKey      String // resized for fullscreen viewing
+  thumbKey       String // grid thumbnail
+  width          Int
+  height         Int
+  sizeBytes      Int
+  mimeType       String
+  status         PhotoStatus   @default(APPROVED)
+  createdAt      DateTime      @default(now())
+  deletedAt      DateTime?
+
+  favorites PhotoFavorite[]
+  reports   PhotoReport[]
+
+  @@index([weddingId, status, deletedAt])
+  @@index([weddingId, createdAt])
+  @@index([guestSessionId])
+  @@map("photos")
+}
+
+model PhotoFavorite {
+  id             String        @id @default(uuid()) @db.Uuid
+  photoId        String        @db.Uuid
+  photo          Photo         @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  guestSessionId String?       @db.Uuid
+  guestSession   GuestSession? @relation(fields: [guestSessionId], references: [id], onDelete: Cascade)
+  userId         String?       @db.Uuid
+  user           User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
+
+  @@unique([photoId, guestSessionId])
+  @@unique([photoId, userId])
+  @@index([guestSessionId])
+  @@map("photo_favorites")
+}
+
+model PhotoReport {
+  id             String        @id @default(uuid()) @db.Uuid
+  photoId        String        @db.Uuid
+  photo          Photo         @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  guestSessionId String?       @db.Uuid
+  guestSession   GuestSession? @relation(fields: [guestSessionId], references: [id], onDelete: SetNull)
+  userId         String?       @db.Uuid
+  user           User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  reason         String
+  createdAt      DateTime      @default(now())
+  resolvedAt     DateTime?
+
+  @@index([photoId])
+  @@map("photo_reports")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Billing (Stripe-ready), notifications, audit
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum SubscriptionPlan {
+  FREE
+  ESSENTIAL
+  PREMIUM
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  TRIALING
+}
+
+model Subscription {
+  id                   String             @id @default(uuid()) @db.Uuid
+  userId               String             @db.Uuid
+  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan                 SubscriptionPlan   @default(FREE)
+  status               SubscriptionStatus @default(ACTIVE)
+  stripeCustomerId     String?            @unique
+  stripeSubscriptionId String?            @unique
+  currentPeriodEnd     DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  @@index([userId])
+  @@map("subscriptions")
+}
+
+model Notification {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String?   @db.Uuid
+  user      User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weddingId String?   @db.Uuid
+  wedding   Wedding?  @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  type      String
+  payload   Json      @default("{}")
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+enum ActorType {
+  USER
+  GUEST
+  SYSTEM
+}
+
+model AuditLog {
+  id         String    @id @default(uuid()) @db.Uuid
+  actorType  ActorType
+  actorId    String?
+  weddingId  String?   @db.Uuid
+  wedding    Wedding?  @relation(fields: [weddingId], references: [id], onDelete: SetNull)
+  action     String
+  targetType String?
+  targetId   String?
+  metadata   Json?
+  ip         String?
+  createdAt  DateTime  @default(now())
+
+  @@index([weddingId, createdAt])
+  @@index([action])
+  @@map("audit_logs")
+}
